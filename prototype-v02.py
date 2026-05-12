@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import time
 import os
+import sys
 
 # ==========================================
 # 1. CREDENTIALS & SETTINGS
@@ -144,5 +145,17 @@ def fetch_incident_data():
 if __name__ == "__main__":
     while True:
         fetch_incident_data()
-        print("💤 Sleeping for 20 minutes...")
-        time.sleep(1200)
+        
+        total_seconds = 1200 # 20 minutes
+        
+        print("\n" + "="*30)
+        while total_seconds > 0:
+            mins, secs = divmod(total_seconds, 60)
+            timer = f"⏳ Next scan in: {mins:02d}:{secs:02d}"
+            print(timer, end="\r")
+            
+            time.sleep(1)
+            total_seconds -= 1
+            
+        # Clear the countdown line before the next scan starts
+        print("🚀 Starting new scan...          ")
