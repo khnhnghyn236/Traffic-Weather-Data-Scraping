@@ -108,6 +108,7 @@ def fetch_traffic_intelligence():
             is_congested = 0
             inc_types = []
             mag = 0
+            reported_delay = 0  # <--- ADD THIS VARIABLE
             
             TARGETS = {1: "Accident", 6: "Jam", 8: "Closed"}
             for inc in inc_data.get('incidents', []):
@@ -116,21 +117,23 @@ def fetch_traffic_intelligence():
                     is_congested = 1
                     inc_types.append(TARGETS[p['iconCategory']])
                     mag = max(mag, p.get('magnitudeOfDelay') or 0)
+                    reported_delay = max(reported_delay, p.get('delay') or 0) # <--- EXTRACT DELAY HERE
 
             # 5. COMPILE ENRICHED ROW
             row = {
                 "timestamp": timestamp,
                 "route_name": name,
-                "frc_class": frc,                     # Feature 4
-                "speed_limit_baseline": free_speed,   # Feature 3/4
+                "frc_class": frc,                     
+                "speed_limit_baseline": free_speed,   
                 "current_speed": live_speed,
-                "speed_ratio_proxy": speed_ratio,     # Feature 1 (Volume Proxy)
-                "travel_time_s": curr_tt,             # Feature 2
-                "free_flow_time_s": free_tt,          # Feature 2
-                "route_delay_s": route_delay,         # Feature 2
+                "speed_ratio_proxy": speed_ratio,     
+                "travel_time_s": curr_tt,             
+                "free_flow_time_s": free_tt,          
+                "route_delay_s": route_delay,         
                 "is_congested": is_congested,
                 "incident_type": ", ".join(set(inc_types)) if inc_types else "None",
-                "magnitude": mag,
+                "incident_magnitude": mag,            # <--- RENAMED
+                "reported_delay_seconds": reported_delay, # <--- ADDED
                 "weather": w_desc,
                 "temp": temp,
                 "rain_mm": rain
