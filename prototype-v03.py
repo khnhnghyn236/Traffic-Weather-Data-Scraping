@@ -110,7 +110,17 @@ def fetch_traffic_intelligence():
             mag = 0
             reported_delay = 0  # <--- ADD THIS VARIABLE
             
-            TARGETS = {1: "Accident", 6: "Jam", 8: "Closed"}
+            TARGETS = { 
+                1: "Accident",
+                3: "Dangerous Conditions",
+                6: "Jam",
+                7: "Lane Closed",
+                8: "Road Closed",
+                9: "Road Works",
+                11: "Flooding",
+                14: "Broken Down Vehicle"
+            }
+            
             for inc in inc_data.get('incidents', []):
                 p = inc['properties']
                 if p.get('iconCategory') in TARGETS:
