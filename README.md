@@ -1,4 +1,4 @@
-# 🚦 Hanoi Traffic Intelligence Collector (HTIC) - V3
+# Traffic-Weather Data Collector - V3
 
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)
 ![Data Source](https://img.shields.io/badge/data-TomTom%20%7C%20OpenWeatherMap-orange)
@@ -7,13 +7,13 @@ An automated Python data pipeline designed to continuously scrape, fuse, and lab
 
 Built for machine learning and predictive traffic modeling, this **V3 Research-Grade** pipeline actively mitigates spatial, directional, and temporal biases common in standard API scraping. It integrates bidirectional routing delays, multi-point flow aggregation, adaptive polling, and localized weather metrics into a unified, high-fidelity dataset.
 
-## 🌟 Overview
+## Overview
 
 Standard traffic APIs often provide lagging incident reports or macro-level travel times that fail to capture the asymmetric nature of urban traffic. This pipeline monitors specific geographic corridors, capturing the exact environmental conditions and "invisible congestion" metrics in real-time. 
 
 The script runs continuously, utilizing an adaptive sampling rate (e.g., polling every 5 minutes during rush hour and 20 minutes off-peak) to capture rapid congestion onset without burning through API quotas.
 
-## ✨ Key Upgrades & Bias Mitigation
+## Key Upgrades & Bias Mitigation
 
 *   **Bidirectional Routing (Directional Bias):** Captures traffic flowing in both directions (Inbound vs. Outbound) simultaneously, recognizing that morning and evening commutes have opposite congestion profiles.
 *   **Multi-Point Flow Aggregation (Spatial Bias):** Instead of relying on a single coordinate that might sit on an empty ramp or a red light, the pipeline samples 3 distinct points along the route and calculates the median speed and baseline.
@@ -24,7 +24,7 @@ The script runs continuously, utilizing an adaptive sampling rate (e.g., polling
 
 ---
 
-## 📊 Data Schema (Data Dictionary)
+## Data Schema (Data Dictionary)
 
 Each route generates a dynamic `_v3_intelligence.csv` file with the following engineered schema:
 
@@ -53,7 +53,7 @@ Each route generates a dynamic `_v3_intelligence.csv` file with the following en
 
 ---
 
-## ⚙️ Installation & Configuration
+## Installation & Configuration
 
 ### Prerequisites
 *   Python 3.8 or higher.
