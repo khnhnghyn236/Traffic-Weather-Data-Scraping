@@ -24,158 +24,129 @@ STRATEGIC_HOURS = [
     "22:30:00"  # Late night baseline
 ]
 
-# ISOLATED ROUTE: Vinh Tuy Bridge Only
 ROUTE_CONFIG = {
     "Vinh Tuy Bridge": {
-        "A": "21.0000,105.8700", "B": "21.0250,105.8950"
+        "A": "21.0000,105.8700", "B": "21.0250,105.8950",
+        "frc": 2  # Hardcoded structural FRC for Vinh Tuy
     }
 }
 
 # ==========================================
 # 2. HISTORICAL DATA HELPERS
 # ==========================================
-
 def get_hourly_weather_profile(lat, lon, date_str):
-    """Fetches the full 24-hour weather profile for a specific date in one call"""
     url = f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{lat},{lon}/{date_str}?unitGroup=metric&key={VISUAL_CROSSING_KEY}&include=hours"
     try:
         r = requests.get(url, timeout=10).json()
         return r['days'][0].get('hours', [])
-    except Exception as e:
-        print(f"⚠️ Weather API Error on {date_str}: {e}")
-        return []
+    except: return []
 
 def get_historical_routing(start, end, timestamp):
-    """Queries TomTom with explicit missing-data handling and route stability checks"""
     url = f"https://api.tomtom.com/routing/1/calculateRoute/{start}:{end}/json?key={TOMTOM_KEY}&traffic=true&departAt={timestamp}&computeTravelTimeFor=all"
-    
     try:
-        time.sleep(0.2) # API Pacing
+        time.sleep(0.2) 
         res = requests.get(url, timeout=10)
-        
-        if res.status_code != 200: 
-            return "API_FAIL", None, None, None, None, None
+        if res.status_code != 200: return None, None, None, None
             
         s = res.json()['routes'][0]['summary']
         curr_tt = s.get('travelTimeInSeconds')
-        baseline_tt = s.get('noTrafficTravelTimeInSeconds', curr_tt) # Fallback to curr_tt if missing
+        free_tt = s.get('noTrafficTravelTimeInSeconds', curr_tt) 
         length_m = s.get('lengthInMeters')
         
-        # Physics calculation (v = d/t)
         live_speed = round((length_m / curr_tt) * 3.6, 1) if curr_tt else None
-        baseline_speed = round((length_m / baseline_tt) * 3.6, 1) if baseline_tt else None
+        free_speed = round((length_m / free_tt) * 3.6, 1) if free_tt else None
         
-        return "SUCCESS", curr_tt, baseline_tt, live_speed, baseline_speed, length_m
-    except Exception as e:
-        return f"EXCEPTION: {str(e)}", None, None, None, None, None
+        return curr_tt, free_tt, live_speed, free_speed
+    except: return None, None, None, None
 
 # ==========================================
 # 3. BATCH PROCESSOR ENGINE
 # ==========================================
-def run_historical_batch(start_day_offset=1, days_to_scrape=40):
-    print(f"🚀 Starting V5 Transport Science Scrape: {days_to_scrape} days...")
-    
+def run_historical_batch(start_day_offset=1, days_to_scrape=120):
     for d in range(start_day_offset, start_day_offset + days_to_scrape):
         target_date = (datetime.now() - timedelta(days=d))
         date_str = target_date.strftime("%Y-%m-%d")
         
-        # Metadata: Day of week and weekend flags
-        day_of_week = target_date.strftime("%A")
+        # Match original schema datatypes
         is_weekend = 1 if target_date.weekday() >= 5 else 0
         
-        print(f"\n📅 Processing Date: {date_str} ({day_of_week})")
+        print(f"\n📅 Processing Date: {date_str}")
         
         for name, nodes in ROUTE_CONFIG.items():
-            # 1. Fetch entire day's hourly weather profile (saves 23 API calls)
             lat, lon = nodes['A'].split(',')
             hourly_weather = get_hourly_weather_profile(lat, lon, date_str)
+            frc = nodes['frc']
             
-            # 2. Iterate through stratified time slots
             for t_hour in STRATEGIC_HOURS:
                 timestamp = f"{date_str}T{t_hour}"
+                ts = f"{date_str} {t_hour}" # Original timestamp format
+                hour_of_day = int(t_hour.split(':')[0])
                 
-                # Match exact hour for weather causation
-                target_weather_hour = t_hour.split(':')[0] + ":00:00"
-                w_temp, w_rain, w_wind, w_hum = None, None, None, None
+                # Extract strict weather metrics
+                w_desc = "Clear"
+                temp = rain = hum = vis = 0.0
                 for hour_data in hourly_weather:
-                    if hour_data.get('datetime') == target_weather_hour:
-                        w_temp = hour_data.get('temp')
-                        w_rain = hour_data.get('precip')
-                        w_wind = hour_data.get('windspeed')
-                        w_hum = hour_data.get('humidity')
+                    if hour_data.get('datetime') == f"{hour_of_day:02d}:00:00":
+                        w_desc = hour_data.get('conditions', "Clear")
+                        temp = float(hour_data.get('temp', 0.0))
+                        rain = float(hour_data.get('precip', 0.0))
+                        hum = float(hour_data.get('humidity', 0.0))
+                        vis = float(hour_data.get('visibility', 10.0) * 1000) # Convert km to meters
                         break
                 
                 directions = [("Inbound", nodes['A'], nodes['B']), ("Outbound", nodes['B'], nodes['A'])]
                 
                 for dir_label, start, end in directions:
-                    api_status, curr_tt, baseline_tt, live_speed, baseline_speed, length_m = get_historical_routing(start, end, timestamp)
+                    curr_tt, free_tt, live_speed, free_speed = get_historical_routing(start, end, timestamp)
                     
-                    # 🚨 BIAS MITIGATION: Survivorship Handling
-                    # We log the row even if it fails, preserving outage patterns
+                    if curr_tt is None: continue 
                     
-                    # Advanced ML Metrics Processing
-                    delay_s = max(0, curr_tt - baseline_tt) if (curr_tt and baseline_tt) else None
-                    relative_speed_ratio = round(live_speed / baseline_speed, 3) if (live_speed and baseline_speed) else None
-                    delay_ratio = round(curr_tt / baseline_tt, 3) if (curr_tt and baseline_tt) else None
-                    congestion_index = round(delay_s / curr_tt, 3) if (delay_s and curr_tt) else None
+                    route_delay = max(0, curr_tt - free_tt)
+                    speed_ratio = round(live_speed / free_speed, 2) if free_speed else 1.0
+                    
+                    # Heuristic fallback for incidents (Since historical APIs lack live incidents)
+                    is_congested = 1 if speed_ratio < 0.6 else 0
+                    inc_types = "Historical Jam" if is_congested else "None"
+                    mag = 2 if is_congested else 0
 
+                    # EXACT ORIGINAL DICTIONARY PRESERVED
                     row = {
-                        "timestamp": timestamp,
-                        "date": date_str,
-                        "time_slot": t_hour,
-                        "day_of_week": day_of_week,
-                        "is_weekend": is_weekend,
+                        "timestamp": ts,
                         "route_name": name,
                         "direction": dir_label,
-                        "api_status": api_status,
-                        "route_length_m": length_m,
+                        "is_weekend": is_weekend,
+                        "hour_of_day": hour_of_day,
+                        "frc_class": frc,                     
+                        "speed_limit_baseline": free_speed,   
                         "current_speed": live_speed,
-                        "baseline_speed": baseline_speed,
-                        "relative_speed_ratio": relative_speed_ratio,
-                        "travel_time_s": curr_tt,
-                        "baseline_tt_s": baseline_tt,
-                        "delay_s": delay_s,
-                        "delay_ratio": delay_ratio,
-                        "congestion_index": congestion_index,
-                        "temp_c": w_temp,
-                        "rain_mm": w_rain,
-                        "wind_speed_kmh": w_wind,
-                        "humidity_pct": w_hum
+                        "speed_ratio_proxy": speed_ratio,     
+                        "travel_time_s": curr_tt,             
+                        "free_flow_time_s": free_tt,          
+                        "route_delay_s": route_delay,         
+                        "is_congested": is_congested,
+                        "incident_type": inc_types,
+                        "magnitude": mag,
+                        "weather": w_desc,
+                        "temp": temp,
+                        "rain_mm": rain,
+                        "humidity": hum,
+                        "visibility": vis
                     }
                     
                     df = pd.DataFrame([row])
-                    fname = "VINH_TUY_HISTORICAL.csv"
+                    fname = "VINH_TUY_HISTORICAL_MASTER.csv"
                     df.to_csv(fname, mode='a', header=not os.path.exists(fname), index=False)
                     
-                print(f"  ✅ Logged {t_hour} | Weather matched: {'Yes' if w_temp is not None else 'No'}", end="\r")
-        print("") 
+                print(f"  ✅ Logged {t_hour}", end="\r")
 
 if __name__ == "__main__":
-    # ==========================================
-    # 🚀 DISTRIBUTED TEAM SCRAPING CONFIGURATION
-    # ==========================================
-    # Total Goal: 365 Days
-    # API Burn Rate: ~20 calls per day (Max 2,500 per account)
-    
-    print("WARNING: Ensure you are using YOUR OWN API keys at the top of the script!")
-    
-    # ------------------------------------------
-    # TEAM MEMBER 1 (The Recent Past)
-    # Target: Days 1 to 121 (2,420 API calls)
-    # ------------------------------------------
-    # Uncomment the line below if you are Member 1:
+    # --- TEAM MEMBER 1 ---
     # run_historical_batch(start_day_offset=1, days_to_scrape=121)
     
-    # ------------------------------------------
-    # TEAM MEMBER 2 (The Middle Months)
-    # Target: Days 122 to 243 (2,440 API calls)
-    # ------------------------------------------
-    # Uncomment the line below if you are Member 2:
+    # --- TEAM MEMBER 2 ---
     # run_historical_batch(start_day_offset=122, days_to_scrape=122)
     
-    # ------------------------------------------
-    # TEAM MEMBER 3 (The Deep Past)
-    # Target: Days 244 to 365 (2,440 API calls)
-    # ------------------------------------------
-    # Uncomment the line below if you are Member 3:
+    # --- TEAM MEMBER 3 ---
     # run_historical_batch(start_day_offset=244, days_to_scrape=122)
+    
+    pass # Remove 'pass' and uncomment your assigned line above!
