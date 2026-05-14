@@ -8,51 +8,19 @@ import numpy as np
 # ==========================================
 # 1. CREDENTIALS & SETTINGS
 # ==========================================
+
+# Note: Please replace with your own keys.
 TOMTOM_KEY = "..."
 WEATHER_KEY = "..."
 
-# UPDATED: Added Point A, Point B, and multiple flow sampling points
 ROUTE_CONFIG = {
-    "Long Bien Bridge": {
-        "bbox": "105.8483,21.0380,105.8677,21.0480",
-        "A": "21.0401,105.8505", "B": "21.0455,105.8652",
-        "flow_points": ["21.0410,105.8530", "21.0428,105.8578", "21.0440,105.8620"]
-    },
     "Chuong Duong Bridge": {
         "bbox": "105.8529,21.0334,105.8678,21.0419",
         "A": "21.0357,105.8555", "B": "21.0403,105.8658",
-        "flow_points": ["21.0365,105.8580", "21.0381,105.8603", "21.0395,105.8630"]
+        # Dropped one coordinate to save API calls
+        "flow_points": ["21.0365,105.8580", "21.0395,105.8630"] 
     },
-    "Nhat Tan Bridge": {
-        "bbox": "105.8134,21.0804,105.8291,21.1169",
-        "A": "21.0850,105.8200", "B": "21.1150,105.8250",
-        "flow_points": ["21.0900,105.8210", "21.1000,105.8225", "21.1100,105.8240"]
-    },
-    "Thang Long Bridge": {
-        "bbox": "105.7835,21.0853,105.7895,21.1148",
-        "A": "21.0870,105.7860", "B": "21.1130,105.7870",
-        "flow_points": ["21.0900,105.7862", "21.1000,105.7865", "21.1100,105.7868"]
-    },
-    "Vinh Tuy Bridge": {
-        "bbox": "105.8676,20.9970,105.8972,21.0270",
-        "A": "21.0000,105.8700", "B": "21.0250,105.8950",
-        "flow_points": ["21.0050,105.8750", "21.0125,105.8825", "21.0200,105.8900"]
-    },
-    "Thanh Tri Bridge": {
-        "bbox": "105.8904,20.9814,105.9146,21.0079",
-        "A": "20.9850,105.8950", "B": "21.0050,105.9120",
-        "flow_points": ["20.9900,105.8980", "20.9950,105.9035", "21.0000,105.9080"]
-    },
-    "Xuan Thuy Road": {
-        "bbox": "105.7789,21.0342,105.7917,21.0383",
-        "A": "21.0365,105.7800", "B": "21.0375,105.7910",
-        "flow_points": ["21.0368,105.7820", "21.0370,105.7850", "21.0372,105.7880"]
-    },
-    "Nguyen Trai Street": {
-        "bbox": "105.7993,20.9880,105.8218,21.0050",
-        "A": "20.9900,105.8000", "B": "21.0040,105.8200",
-        "flow_points": ["20.9930,105.8050", "20.9970,105.8100", "21.0000,105.8150"]
-    }
+    # Other routes...
 }
 
 # ==========================================
@@ -120,7 +88,6 @@ def fetch_traffic_intelligence():
                 curr_tt, free_tt = get_routing_data(start, end, f"{name} {dir_label}")
                 route_delay = max(0, curr_tt - free_tt) if (curr_tt and free_tt) else None
 
-                # Mitigation: Expanded Incident Taxonomy
                 inc_url = f"https://api.tomtom.com/traffic/services/5/incidentDetails?key={TOMTOM_KEY}&bbox={config['bbox']}&fields={'{incidents{properties{iconCategory,magnitudeOfDelay,delay}}}'}&language=en-GB"
                 inc_res = requests.get(inc_url, timeout=10).json()
                 
@@ -183,19 +150,28 @@ if __name__ == "__main__":
     while True:
         fetch_traffic_intelligence()
         
-        # Mitigation: Adaptive Sampling Bias
-        now_hour = datetime.now().hour
-        # Rush Hour: 7-9 AM, 4-7 PM
-        if (7 <= now_hour <= 9) or (16 <= now_hour <= 19):
-            total_seconds = 300 # 5 Minute Polling
-            print("\n🚨 RUSH HOUR DETECTED: Increasing sampling rate to 5 mins.")
-        else:
-            total_seconds = 1200 # 20 Minute Polling
+        # Mitigation: Adaptive Sampling Bias (15-min / 20-min)
+        now = datetime.now()
+        now_hour = now.hour
+        now_minute = now.minute
         
+        # Rush Hour: 6:00 AM - 9:00 AM
+        is_morning_rush = 6 <= now_hour < 9
+        
+        # Rush Hour: 4:00 PM - 7:30 PM (16:00 - 19:30)
+        is_evening_rush = (16 <= now_hour < 19) or (now_hour == 19 and now_minute <= 30)
+        
+        if is_morning_rush or is_evening_rush:
+            total_seconds = 900 # 15 Minute Polling (900 seconds)
+            print("\n🚨 RUSH HOUR DETECTED: 15 min polling active.")
+        else:
+            total_seconds = 1200 # 20 Minute Polling (1200 seconds)
+            
         print("="*45)
         while total_seconds > 0:
             mins, secs = divmod(total_seconds, 60)
             print(f"⏳ Next intelligence scan in: {mins:02d}:{secs:02d}", end="\r")
             time.sleep(1)
             total_seconds -= 1
+            
         print("🚀 Executing API requests...             ")
