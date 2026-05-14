@@ -1,7 +1,7 @@
 # Traffic-Weather Historical Data Scraper - Vinh Tuy Bridge
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
-[![TomTom Routing API](https://img.shields.io/badge/API-TomTom%20Routing-red.svg)](https://developer.tomtom.com/routing-api/documentation)
+[![TomTom Routing API](https://img.shields.io/badge/API-TomTom%20Routing-red.svg)](https://my.tomtom.com/)
 [![Visual Crossing Weather API](https://img.shields.io/badge/API-Visual%20Crossing-orange.svg)](https://www.visualcrossing.com/resources/documentation/weather-api/timeline-weather-api/)
 [![Output](https://img.shields.io/badge/output-CSV-green)](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_csv.html)
 
