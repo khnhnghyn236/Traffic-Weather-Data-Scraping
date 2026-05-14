@@ -105,11 +105,20 @@ def run_historical_batch(start_day_offset, days_to_scrape):
                 # Logic Fix 1: Nearest-Hour Weather Alignment
                 wh = get_nearest_weather(hourly_weather, t_hour)
                 
-                w_desc = wh.get('conditions', "Clear")
-                temp = float(wh.get('temp', 0.0))
-                rain = float(wh.get('precip', 0.0)) # Note: interpreted as hourly accumulation
-                hum = float(wh.get('humidity', 0.0))
-                vis = float(wh.get('visibility', 10.0) * 1000)
+                w_desc = wh.get('conditions') or "Clear"
+                
+                # Fetch values safely, substituting defaults if the API returned None
+                temp_val = wh.get('temp')
+                temp = float(temp_val if temp_val is not None else 0.0)
+                
+                rain_val = wh.get('precip')
+                rain = float(rain_val if rain_val is not None else 0.0)
+                
+                hum_val = wh.get('humidity')
+                hum = float(hum_val if hum_val is not None else 0.0)
+                
+                vis_val = wh.get('visibility')
+                vis = float((vis_val if vis_val is not None else 10.0) * 1000)
                 
                 directions = [("Inbound", nodes['A'], nodes['B']), ("Outbound", nodes['B'], nodes['A'])]
                 
@@ -156,14 +165,21 @@ def run_historical_batch(start_day_offset, days_to_scrape):
                 print(f"  ✅ Logged {t_hour}", end="\r")
 
 if __name__ == "__main__":
-    # --- TEAM MEMBER 1 (The Recent Past) ---
-    # run_historical_batch(start_day_offset=1, days_to_scrape=121)
+    # ==========================================
+    # 🚀 FINAL 1-YEAR DISTRIBUTED SCRAPING
+    # ==========================================
+    # Member 1 (You) completed: Offsets 1 to 81 (DONE)
     
-    # --- TEAM MEMBER 2 (The Middle Months) ---
-    # run_historical_batch(start_day_offset=122, days_to_scrape=122)
+    # ------------------------------------------
+    # PARTNER A (The Middle History)
+    # Target: Days 82 to 223 (142 days total)
+    # ------------------------------------------
+    # run_historical_batch(start_day_offset=82, days_to_scrape=142)
     
-    # --- TEAM MEMBER 3 (The Deep Past) ---
-    # run_historical_batch(start_day_offset=244, days_to_scrape=122)
+    # ------------------------------------------
+    # PARTNER B (The Deep History)
+    # Target: Days 224 to 365 (142 days total)
+    # ------------------------------------------
+    # run_historical_batch(start_day_offset=224, days_to_scrape=142)
     
     pass
-
