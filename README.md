@@ -1,123 +1,520 @@
-# Traffic-Weather Data Collector - V3
+# Traffic-Weather Historical Data Scraper - Vinh Tuy Bridge
 
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)
-![Data Source](https://img.shields.io/badge/data-TomTom%20%7C%20OpenWeatherMap-orange)
+![Data Source](https://img.shields.io/badge/data-TomTom%20Routing%20%7C%20Visual%20Crossing-orange)
+![Output](https://img.shields.io/badge/output-CSV-green)
 
-An automated Python data pipeline designed to continuously scrape, fuse, and label real-time urban mobility data across Hanoi's critical infrastructure. 
+A Python batch scraper for collecting historical traffic and weather features for **Vinh Tuy Bridge, Hanoi**.
 
-Built for machine learning and predictive traffic modeling, this **V3 Research-Grade** pipeline actively mitigates spatial, directional, and temporal biases common in standard API scraping. It integrates bidirectional routing delays, multi-point flow aggregation, adaptive polling, and localized weather metrics into a unified, high-fidelity dataset.
+This project combines:
 
-## Overview
-
-Standard traffic APIs often provide lagging incident reports or macro-level travel times that fail to capture the asymmetric nature of urban traffic. This pipeline monitors specific geographic corridors, capturing the exact environmental conditions and "invisible congestion" metrics in real-time. 
-
-The script runs continuously, utilizing an adaptive sampling rate (e.g., polling every 5 minutes during rush hour and 20 minutes off-peak) to capture rapid congestion onset without burning through API quotas.
-
-## Key Upgrades & Bias Mitigation
-
-*   **Bidirectional Routing (Directional Bias):** Captures traffic flowing in both directions (Inbound vs. Outbound) simultaneously, recognizing that morning and evening commutes have opposite congestion profiles.
-*   **Multi-Point Flow Aggregation (Spatial Bias):** Instead of relying on a single coordinate that might sit on an empty ramp or a red light, the pipeline samples 3 distinct points along the route and calculates the median speed and baseline.
-*   **Adaptive Temporal Sampling (Temporal Bias):** Automatically detects Hanoi rush hours (7-9 AM, 4-7 PM) and accelerates the data collection frequency from 20 minutes to 5 minutes to capture sudden traffic spikes.
-*   **Volume Proxying:** Implements a Speed Ratio Proxy (`current_speed` / `free_flow_speed`) to mathematically estimate road saturation levels without physical sensors.
-*   **Expanded Environmental Context:** Captures extended weather variables like humidity and visibility, which strongly dictate motorcycle braking distances and behavior in Southeast Asia.
-*   **Fail-Safe Integrity (Survivorship Bias):** Uses `None` rather than `0` for API timeouts, preventing models from learning impossible "zero-speed, zero-delay" states during network outages.
+- **TomTom Routing API** for route travel time, free-flow travel time, route length, and speed estimation.
+- **Visual Crossing Weather API** for hourly weather data.
+- A fixed set of strategic sampling times across each day.
+- Bidirectional route collection: **Inbound** and **Outbound**.
+- CSV output designed for machine learning traffic-congestion analysis.
 
 ---
 
-## Data Schema (Data Dictionary)
+## What This Version Does
 
-Each route generates a dynamic `_v3_intelligence.csv` file with the following engineered schema:
+This version is not a continuous real-time scanner. It is a **historical batch scraper**.
 
-| Column Name | Data Type | Description |
-| :--- | :--- | :--- |
-| `timestamp` | `datetime` | Local ISO-formatted timestamp of the API polling cycle. |
-| `route_name` | `string` | The human-readable name of the monitored segment. |
-| `direction` | `string` | `Inbound` or `Outbound` relative to the defined A/B nodes. |
-| `is_weekend` | `int` | Binary flag: `1` if Saturday/Sunday, `0` otherwise. |
-| `hour_of_day` | `int` | Extracted hour (0-23) for temporal pattern analysis. |
-| `frc_class` | `int` | Median Functional Road Class (0-7) across sampled points. |
-| `speed_limit_baseline` | `float` | Median theoretical free-flow speed (km/h) of the segment. |
-| `current_speed` | `float` | Median live speed (km/h) across the segment points. |
-| `speed_ratio_proxy` | `float` | `current_speed / speed_limit_baseline`. Ratio < 0.6 indicates saturation. |
-| `travel_time_s` | `int` | Current time (seconds) to traverse the route. |
-| `free_flow_time_s` | `int` | Time (seconds) to traverse the route in ideal, empty conditions. |
-| `route_delay_s` | `int` | Exact time lost (seconds) across the whole route. |
-| `is_congested` | `int` | **[Target Variable]** Binary flag: `1` if an incident exists OR `speed_ratio` < 0.6. |
-| `incident_type` | `string` | Categorized event (e.g., `Accident`, `Jam`, `Flooding`, `Roadworks`). |
-| `magnitude` | `int` | Severity of the delay from 0 (Unknown) to 4 (Road Closed). |
-| `weather` | `string` | Primary environmental state (e.g., "Clear", "Rain"). |
-| `temp` | `float` | Ambient temperature in Celsius. |
-| `rain_mm` | `float` | Recorded rainfall volume over the last hour (mm). |
-| `humidity` | `int` | Relative humidity percentage. |
-| `visibility` | `int` | Visibility distance in meters (max 10,000). |
+For each target date, the script:
+
+1. Selects one historical date using a day offset from the current date.
+2. Fetches one full-day hourly weather profile from Visual Crossing.
+3. Samples traffic at fixed strategic hours.
+4. Calls TomTom Routing API for both route directions.
+5. Calculates traffic features such as route delay, speed ratio, and congestion label.
+6. Appends each result row to a CSV file.
 
 ---
 
-## Installation & Configuration
+## Current Route Configuration
 
-### Prerequisites
-*   Python 3.8 or higher.
-*   Active API keys from the [TomTom Developer Portal](https://developer.tomtom.com/) (Traffic Incidents, Flow, and Routing APIs enabled).
-*   Active API key from [OpenWeatherMap](https://openweathermap.org/api).
+The current script is configured for **Vinh Tuy Bridge**.
 
-### 1. Clone the Repository
-```bash
-git clone [https://github.com/YOUR-USERNAME/YOUR-REPO-NAME.git](https://github.com/YOUR-USERNAME/YOUR-REPO-NAME.git)
-cd YOUR-REPO-NAME
-```
-
-### 2. Install Dependencies
-```bash
-pip install pandas requests numpy
-```
-
-### 3. Configure Credentials
-Open the main python script in your preferred IDE and insert your API keys:
-
-```bash
-TOMTOM_KEY = "your_actual_tomtom_key_here"
-WEATHER_KEY = "your_actual_openweathermap_key_here"
-```
-
-### 4. Define Target Routes
-Configure your target locations in the ROUTE_CONFIG dictionary. Provide a bounding box (bbox) for incidents, A/B endpoints for bidirectional routing, and an array of flow_points for spatial median aggregation.
-
-```bash
+```python
 ROUTE_CONFIG = {
-    "Golden Gate Bridge": {
-        "bbox": "-122.485,37.810,-122.470,37.825",
-        "A": "37.807,-122.475", 
-        "B": "37.830,-122.479",
-        "flow_points": ["37.810,-122.476", "37.818,-122.478", "37.825,-122.478"]
+    "Vinh Tuy Bridge": {
+        "A": "21.0041,105.8778",
+        "B": "21.0223,105.8931",
+        "frc": 2
     }
 }
 ```
 
-### 5. Run the Collector
-```bash
-python traffic_scanner.py
+Direction meaning:
+
+| Direction | Start | End |
+| :--- | :--- | :--- |
+| `Inbound` | Point A | Point B |
+| `Outbound` | Point B | Point A |
+
+---
+
+## Strategic Sampling Hours
+
+The scraper collects data at exactly these 10 times per day:
+
+```python
+STRATEGIC_HOURS = [
+    "03:00:00",
+    "07:10:00",
+    "07:30:00",
+    "10:00:00",
+    "12:00:00",
+    "15:00:00",
+    "16:00:00",
+    "17:10:00",
+    "20:00:00",
+    "22:30:00"
+]
 ```
 
-## Expected Output
-The script will output an execution log to the console and begin populating .csv files in the root directory.
+These times are designed to capture early morning, rush-hour, midday, afternoon, evening, and late-night conditions.
 
-```bash
---- Intelligence Scan: 2026-05-14 17:35:00 ---
-🟢 Nhat Tan Bridge (Inbound) | Speed: 78/80 | Delay: 0s
-🔴 Nhat Tan Bridge (Outbound) | Speed: 32/80 | Delay: 184s
-🔴 Nguyen Trai Street (Inbound) | Speed: 15/50 | Delay: 420s
-🟢 Nguyen Trai Street (Outbound) | Speed: 42/50 | Delay: 12s
+---
 
-🚨 RUSH HOUR DETECTED: Increasing sampling rate to 5 mins.
-=============================================
-⏳ Next intelligence scan in: 04:59
+## Key Features
+
+### 1. Historical Batch Collection
+
+The function below controls which historical days are collected:
+
+```python
+run_historical_batch(start_day_offset=82, days_to_scrape=142)
 ```
 
-## Roadmap / Future Enhancements
-[ ] Database Migration: Transition from local CSV storage to a robust time-series database (e.g., PostgreSQL or InfluxDB).
+Example:
 
-[ ] Dockerization: Wrap the pipeline in a Docker container for seamless cloud deployment.
+| Setting | Meaning |
+| :--- | :--- |
+| `start_day_offset=82` | Start from 82 days before today |
+| `days_to_scrape=142` | Scrape 142 days |
+| Output file | `VINH_TUY_OFFSET_82.csv` |
 
-[ ] Data Visualization: Build a Streamlit dashboard to map the real-time congestion state of the city.
+---
 
-[ ] Predictive Modeling: Train an XGBoost or Random Forest classifier on the generated dataset to forecast congestion probability 30 minutes into the future based on weather and temporal trends.
+### 2. Bidirectional Routing
+
+For every timestamp, the script collects both:
+
+```python
+directions = [
+    ("Inbound", nodes["A"], nodes["B"]),
+    ("Outbound", nodes["B"], nodes["A"])
+]
+```
+
+This is important because traffic patterns can be very different in opposite directions.
+
+---
+
+### 3. Nearest-Hour Weather Alignment
+
+Visual Crossing returns weather by hour. The script matches each traffic sample to the closest available weather hour:
+
+```python
+wh = get_nearest_weather(hourly_weather, t_hour)
+```
+
+This reduces temporal mismatch between traffic and weather data.
+
+---
+
+### 4. Congestion Labeling
+
+The script calculates:
+
+```python
+speed_ratio = current_speed / speed_limit_baseline
+```
+
+Then it labels congestion using:
+
+```python
+is_congested = 1 if speed_ratio < 0.65 else 0
+```
+
+The output values are:
+
+| Value | Meaning |
+| :--- | :--- |
+| `1` | Congested |
+| `0` | Not congested |
+
+---
+
+### 5. CSV Output
+
+The script writes rows into a CSV file named by offset:
+
+```python
+VINH_TUY_OFFSET_{start_day_offset}.csv
+```
+
+Example:
+
+```text
+VINH_TUY_OFFSET_82.csv
+```
+
+The file is appended continuously as the scraper runs.
+
+---
+
+## Data Schema
+
+| Column Name | Data Type | Description |
+| :--- | :--- | :--- |
+| `timestamp` | `datetime/string` | Date and time of the traffic sample. |
+| `route_name` | `string` | Route name, currently `Vinh Tuy Bridge`. |
+| `direction` | `string` | `Inbound` or `Outbound`. |
+| `is_weekend` | `int` | `1` if Saturday/Sunday, otherwise `0`. |
+| `hour_of_day` | `int` | Hour extracted from the sample time. |
+| `frc_class` | `int` | Functional road class from the route config. |
+| `speed_limit_baseline` | `float` | Estimated free-flow speed in km/h. |
+| `current_speed` | `float` | Estimated current/historical route speed in km/h. |
+| `speed_ratio_proxy` | `float` | `current_speed / speed_limit_baseline`. |
+| `travel_time_s` | `int` | TomTom travel time in seconds. |
+| `free_flow_time_s` | `int` | TomTom no-traffic travel time in seconds. |
+| `route_delay_s` | `int` | `travel_time_s - free_flow_time_s`, never below `0`. |
+| `is_congested` | `int` | Target label: `1` if speed ratio is below `0.65`, otherwise `0`. |
+| `incident_type` | `string` | `Congested` or `None`. |
+| `magnitude` | `int` | `2` for congested, `0` for none. |
+| `weather` | `string` | Weather condition from Visual Crossing. |
+| `temp` | `float` | Temperature in Celsius. |
+| `rain_mm` | `float` | Precipitation in millimeters. |
+| `humidity` | `float` | Relative humidity percentage. |
+| `visibility` | `float` | Visibility converted to meters. |
+
+---
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8 or higher
+- TomTom API key
+- Visual Crossing API key
+
+---
+
+### 1. Open the Project Folder
+
+In PowerShell:
+
+```powershell
+cd "YOUR_DIRECTORY"
+```
+
+---
+
+### 2. Create a Virtual Environment
+
+```powershell
+& "YOUR_DIRECTORY\Python\Python313\python.exe" -m venv .venv
+```
+
+If your Python path is different, replace it with your actual Python path.
+
+---
+
+### 3. Activate the Virtual Environment
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+& ".\.venv\Scripts\Activate.ps1"
+```
+
+After activation, the terminal should show:
+
+```text
+(.venv) PS YOUR_DIRECTORY>
+```
+
+---
+
+### 4. Install Dependencies
+
+```powershell
+& ".\.venv\Scripts\python.exe" -m pip install requests pandas
+```
+
+If your project has a `requirements.txt` file, use:
+
+```powershell
+& ".\.venv\Scripts\python.exe" -m pip install -r requirements.txt
+```
+
+---
+
+## API Key Configuration
+
+Open the Python script and set your keys:
+
+```python
+TOMTOM_KEY = "your_tomtom_key_here"
+VISUAL_CROSSING_KEY = "your_visual_crossing_key_here"
+```
+
+---
+
+## Running the Scraper
+
+Run the script from the project folder:
+
+```powershell
+& ".\.venv\Scripts\python.exe" ".\prototype-v05-HistoryScraper.py"
+```
+
+---
+
+## Changing the Historical Batch
+
+At the bottom of the script, the active batch is:
+
+```python
+run_historical_batch(start_day_offset=82, days_to_scrape=142)
+```
+
+This means:
+
+```text
+Start: 82 days before today
+Total: 142 days
+Range: offsets 82 to 223
+Output: VINH_TUY_OFFSET_82.csv
+```
+
+To scrape the deeper history batch, comment Partner A and uncomment Partner B:
+
+```python
+# run_historical_batch(start_day_offset=82, days_to_scrape=142)
+run_historical_batch(start_day_offset=224, days_to_scrape=142)
+```
+
+This will generate:
+
+```text
+VINH_TUY_OFFSET_224.csv
+```
+
+---
+
+## Expected Console Output
+
+During a successful run, the console should show messages like:
+
+```text
+📅 Processing Date: 2026-02-21
+  ✅ Logged 03:00:00
+  ✅ Logged 07:10:00
+  ✅ Logged 07:30:00
+```
+
+If an API request fails, the script may show:
+
+```text
+❌ API Error 403 at 2026-02-21T07:10:00
+```
+
+or:
+
+```text
+❌ Weather API Error 403 on 2026-02-21
+Message from server: ...
+```
+
+---
+
+## Testing the Visual Crossing Weather API
+
+Create a file named:
+
+```text
+test_weather_api.py
+```
+
+Paste:
+
+```python
+import requests
+
+VISUAL_CROSSING_KEY = "PASTE_YOUR_VISUAL_CROSSING_KEY_HERE"
+
+lat = "21.0041"
+lon = "105.8778"
+date_str = "2026-05-14"
+
+url = (
+    f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/"
+    f"{lat},{lon}/{date_str}?unitGroup=metric&key={VISUAL_CROSSING_KEY}&include=hours"
+)
+
+res = requests.get(url, timeout=10)
+
+print("Status code:", res.status_code)
+print("Server message:")
+print(res.text[:1000])
+```
+
+Run:
+
+```powershell
+& ".\.venv\Scripts\python.exe" ".\test_weather_api.py"
+```
+
+A working key should return:
+
+```text
+Status code: 200
+```
+
+---
+
+## Testing the TomTom Routing API
+
+Create a file named:
+
+```text
+test_tomtom_api.py
+```
+
+Paste:
+
+```python
+import requests
+
+TOMTOM_KEY = "PASTE_YOUR_TOMTOM_KEY_HERE"
+
+url = (
+    "https://api.tomtom.com/routing/1/calculateRoute/"
+    "21.0041,105.8778:21.0223,105.8931/json"
+    f"?key={TOMTOM_KEY}&traffic=true&computeTravelTimeFor=all"
+)
+
+res = requests.get(url, timeout=10)
+
+print("Status code:", res.status_code)
+print("Server message:")
+print(res.text[:1000])
+```
+
+Run:
+
+```powershell
+& ".\.venv\Scripts\python.exe" ".\test_tomtom_api.py"
+```
+
+A working key should return:
+
+```text
+Status code: 200
+```
+
+---
+
+## Troubleshooting
+
+### Error: `ModuleNotFoundError: No module named 'requests'`
+
+Install the missing package inside the virtual environment:
+
+```powershell
+& ".\.venv\Scripts\python.exe" -m pip install requests pandas
+```
+
+---
+
+### Error: `python was not found`
+
+Use the full Python path instead of `python`:
+
+```powershell
+& "C:\Users\ADMIN\AppData\Local\Programs\Python\Python313\python.exe" -m pip install requests pandas
+```
+
+---
+
+### Error: `.venv\Scripts\python.exe is not recognized`
+
+You are probably not inside the project folder.
+
+Run:
+
+```powershell
+cd "C:\Users\ADMIN\Downloads\Traffic-Weather-Data-Scraping-main\Traffic-Weather-Data-Scraping-main"
+```
+
+Then try again:
+
+```powershell
+& ".\.venv\Scripts\python.exe" -m pip install requests pandas
+```
+
+---
+
+### Error: `API Error 403`
+
+A `403` error usually means the API request was refused.
+
+Check:
+
+- The API key is correct.
+- The correct key is used for the correct service.
+- TomTom key is used for TomTom.
+- Visual Crossing key is used for Visual Crossing.
+- The key has permission for the endpoint being called.
+- The account has not exceeded its allowed quota.
+- The key has no extra spaces before or after it.
+
+To reveal the TomTom server message, update this part of the code:
+
+```python
+if res.status_code != 200:
+    print(f"\n❌ TomTom API Error {res.status_code} at {timestamp}")
+    print("URL without key:", url.replace(TOMTOM_KEY, "HIDDEN_KEY"))
+    print("Server message:", res.text)
+    return None, None, None, None
+```
+
+Do not share your API key publicly.
+
+---
+
+## Project Files
+
+Recommended structure:
+
+```text
+Traffic-Weather-Data-Scraping-main/
+│
+├── prototype-v05-HistoryScraper.py
+├── README.md
+├── requirements.txt
+├── .venv/
+├── VINH_TUY_OFFSET_82.csv
+└── VINH_TUY_OFFSET_224.csv
+```
+
+---
+
+## Notes
+
+This README matches the current historical scraper version of the project.
+
+Major changes from the older README:
+
+- Replaced OpenWeatherMap with Visual Crossing.
+- Removed real-time adaptive polling language.
+- Removed multi-point flow aggregation.
+- Removed incident bbox configuration.
+- Updated route example from Golden Gate Bridge to Vinh Tuy Bridge.
+- Updated run command to use `prototype-v05-HistoryScraper.py`.
+- Updated output file name to `VINH_TUY_OFFSET_{start_day_offset}.csv`.
+- Added Windows PowerShell virtual environment commands.
+- Added API test scripts and 403 troubleshooting.
+
