@@ -82,9 +82,20 @@ def run_historical_batch(start_day_offset, days_to_scrape):
         for name, nodes in ROUTE_CONFIG.items():
             lat, lon = nodes['A'].split(',')
             
-            # Fetch weather profile once per day
+            # Fetch weather profile once per day with Defensive Parsing
             w_url = f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{lat},{lon}/{date_str}?unitGroup=metric&key={VISUAL_CROSSING_KEY}&include=hours"
-            hourly_weather = requests.get(w_url).json().get('days', [{}])[0].get('hours', [])
+            
+            try:
+                w_res = requests.get(w_url, timeout=10)
+                if w_res.status_code != 200:
+                    print(f"❌ Weather API Error {w_res.status_code} on {date_str}")
+                    print(f"Message from server: {w_res.text}") # 👈 This reveals the true error!
+                    hourly_weather = []
+                else:
+                    hourly_weather = w_res.json().get('days', [{}])[0].get('hours', [])
+            except Exception as e:
+                print(f"⚠️ Weather Request Exception: {e}")
+                hourly_weather = []
             
             for t_hour in STRATEGIC_HOURS:
                 timestamp = f"{date_str}T{t_hour}"
@@ -155,3 +166,4 @@ if __name__ == "__main__":
     # run_historical_batch(start_day_offset=244, days_to_scrape=122)
     
     pass
+
