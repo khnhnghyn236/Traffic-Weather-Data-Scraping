@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import time
 import os
+import sys  # Added for exiting the script
 
 # ==========================================
 # 1. CREDENTIALS & SETTINGS
@@ -27,7 +28,7 @@ ROUTE_CONFIG = {
 }
 
 # ==========================================
-# 2. ENHANCED LOGIC HELPERS
+# 2. LOGIC HELPERS
 # ==========================================
 
 def get_nearest_weather(hourly_data, target_time_str):
@@ -46,14 +47,15 @@ def get_nearest_weather(hourly_data, target_time_str):
     return closest_hour
 
 def get_historical_routing(start, end, timestamp):
-    """Paced Historical Routing with Error Logging"""
+    """Paced Historical Routing with Error Logging & Halting"""
     url = f"https://api.tomtom.com/routing/1/calculateRoute/{start}:{end}/json?key={TOMTOM_KEY}&traffic=true&departAt={timestamp}&computeTravelTimeFor=all"
     try:
         time.sleep(0.25) # Increased pacing for stability
         res = requests.get(url, timeout=12)
+        
         if res.status_code != 200: 
-            print(f"❌ API Error {res.status_code} at {timestamp}")
-            return None, None, None, None
+            print(f"\n❌ API Error {res.status_code} at {timestamp}")
+            sys.exit("Critical Error: TomTom API failed. Halting scraping immediately.")
             
         s = res.json()['routes'][0]['summary']
         curr_tt = s.get('travelTimeInSeconds')
@@ -64,9 +66,10 @@ def get_historical_routing(start, end, timestamp):
         free_speed = round((length_m / free_tt) * 3.6, 1) if free_tt else None
         
         return curr_tt, free_tt, live_speed, free_speed
+        
     except Exception as e:
-        print(f"⚠️ Connection Error: {e}")
-        return None, None, None, None
+        print(f"\n⚠️ Connection Error: {e}")
+        sys.exit("Critical Error: TomTom API connection failed. Halting scraping immediately.")
 
 # ==========================================
 # 3. BATCH PROCESSOR ENGINE
@@ -82,20 +85,20 @@ def run_historical_batch(start_day_offset, days_to_scrape):
         for name, nodes in ROUTE_CONFIG.items():
             lat, lon = nodes['A'].split(',')
             
-            # Fetch weather profile once per day with Defensive Parsing
+            # Fetch weather profile once per day with Halting Logic
             w_url = f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{lat},{lon}/{date_str}?unitGroup=metric&key={VISUAL_CROSSING_KEY}&include=hours"
             
             try:
                 w_res = requests.get(w_url, timeout=10)
                 if w_res.status_code != 200:
-                    print(f"❌ Weather API Error {w_res.status_code} on {date_str}")
-                    print(f"Message from server: {w_res.text}") # 👈 This reveals the true error!
-                    hourly_weather = []
+                    print(f"\n❌ Weather API Error {w_res.status_code} on {date_str}")
+                    print(f"Message from server: {w_res.text}") 
+                    sys.exit("Critical Error: Visual Crossing API failed. Halting scraping immediately.")
                 else:
                     hourly_weather = w_res.json().get('days', [{}])[0].get('hours', [])
             except Exception as e:
-                print(f"⚠️ Weather Request Exception: {e}")
-                hourly_weather = []
+                print(f"\n⚠️ Weather Request Exception: {e}")
+                sys.exit("Critical Error: Visual Crossing API connection failed. Halting scraping immediately.")
             
             for t_hour in STRATEGIC_HOURS:
                 timestamp = f"{date_str}T{t_hour}"
@@ -124,8 +127,6 @@ def run_historical_batch(start_day_offset, days_to_scrape):
                 
                 for dir_label, start, end in directions:
                     curr_tt, free_tt, live_speed, free_speed = get_historical_routing(start, end, timestamp)
-                    
-                    if curr_tt is None: continue 
                     
                     route_delay = max(0, curr_tt - free_tt)
                     speed_ratio = round(live_speed / free_speed, 2) if (free_speed and free_speed > 0) else 1.0
@@ -166,18 +167,18 @@ def run_historical_batch(start_day_offset, days_to_scrape):
 
 if __name__ == "__main__":
     # ==========================================
-    # 🚀 FINAL 1-YEAR DISTRIBUTED SCRAPING
+    # FINAL 1-YEAR DISTRIBUTED SCRAPING
     # ==========================================
     # Member 1 (You) completed: Offsets 1 to 81 (DONE)
     
     # ------------------------------------------
-    # PARTNER A (The Middle History)
+    # PARTNER A
     # Target: Days 82 to 223 (142 days total)
     # ------------------------------------------
     # run_historical_batch(start_day_offset=82, days_to_scrape=142)
     
     # ------------------------------------------
-    # PARTNER B (The Deep History)
+    # PARTNER B
     # Target: Days 224 to 365 (142 days total)
     # ------------------------------------------
     # run_historical_batch(start_day_offset=224, days_to_scrape=142)
