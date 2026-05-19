@@ -136,7 +136,11 @@ speed_ratio = current_speed / speed_limit_baseline
 Then it labels congestion using:
 
 ```python
-is_congested = 1 if speed_ratio < 0.65 else 0
+CONGESTION_THRESHOLD = 0.80
+.
+.
+.
+is_congested = 1 if speed_ratio < CONGESTION_THRESHOLD else 0
 ```
 
 The output values are:
