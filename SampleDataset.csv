@@ -1,0 +1,12 @@
+timestamp,route_name,direction,is_weekend,hour_of_day,frc_class,speed_limit_baseline,current_speed,speed_ratio_proxy,travel_time_s,free_flow_time_s,route_delay_s,is_congested,incident_type,magnitude,weather,temp,rain_mm,humidity,visibility
+2026-05-13 03:00:00,Vinh Tuy Bridge,Inbound,0,3,2,39.5,39.5,1.0,355,355,0,0,None,0,Partially cloudy,27.0,0.0,88.83,10000.0
+2026-05-13 03:00:00,Vinh Tuy Bridge,Outbound,0,3,2,37.3,37.3,1.0,641,641,0,0,None,0,Partially cloudy,27.0,0.0,88.83,10000.0
+2026-05-13 07:10:00,Vinh Tuy Bridge,Inbound,0,7,2,39.5,33.3,0.84,421,355,66,0,None,0,Overcast,27.0,0.0,88.83,10000.0
+2026-05-13 07:10:00,Vinh Tuy Bridge,Outbound,0,7,2,37.9,29.7,0.78,728,571,157,1,Congested,2,Overcast,27.0,0.0,88.83,10000.0
+2026-05-13 07:30:00,Vinh Tuy Bridge,Inbound,0,7,2,39.5,31.1,0.79,451,355,96,1,Congested,2,Overcast,27.0,0.0,88.83,10000.0
+2026-05-13 07:30:00,Vinh Tuy Bridge,Outbound,0,7,2,37.9,28.0,0.74,771,571,200,1,Congested,2,Overcast,27.0,0.0,88.83,10000.0
+2026-05-13 10:00:00,Vinh Tuy Bridge,Inbound,0,10,2,39.5,34.5,0.87,407,355,52,0,None,0,Clear,31.0,0.0,70.47,10000.0
+2026-05-13 10:00:00,Vinh Tuy Bridge,Outbound,0,10,2,37.9,34.4,0.91,628,571,57,0,None,0,Clear,31.0,0.0,70.47,10000.0
+2026-05-13 12:00:00,Vinh Tuy Bridge,Inbound,0,12,2,39.5,35.1,0.89,400,355,45,0,None,0,Overcast,33.0,0.0,66.77,10000.0
+
+
