@@ -507,19 +507,3 @@ Traffic-Weather-Data-Scraping-main/
 
 ---
 
-## Notes
-
-This README matches the current historical scraper version of the project.
-
-Major changes from the older README:
-
-- Replaced OpenWeatherMap with Visual Crossing.
-- Removed real-time adaptive polling language.
-- Removed multi-point flow aggregation.
-- Removed incident bbox configuration.
-- Updated route example from Golden Gate Bridge to Vinh Tuy Bridge.
-- Updated run command to use `prototype-v05-HistoryScraper.py`.
-- Updated output file name to `VINH_TUY_OFFSET_{start_day_offset}.csv`.
-- Added Windows PowerShell virtual environment commands.
-- Added API test scripts and 403 troubleshooting.
-
